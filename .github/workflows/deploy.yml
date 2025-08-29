@@ -8,31 +8,44 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: 🛎️ Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⎔ Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20.x
-          cache: 'yarn'
-      - run: yarn install
-      - run: yarn build
-      
-      # Empaquetar para deploy
+          cache: "yarn"
+
+      - name: 📦 Install dependencies
+        run: yarn install
+
+      - name: 🏗️ Build application
+        run: yarn build
+
       - name: 📦 Package for deployment
         run: |
           tar -czf deploy.tar.gz .next public package.json yarn.lock
           ls -la *.tar.gz
 
+      - name: 📤 Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-package
+          path: deploy.tar.gz
+          retention-days: 1
+
   deploy:
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main'
-    
+
     steps:
       - name: 📥 Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: build-package
-          
+
       - name: 🚀 Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -41,27 +54,24 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             echo "📍 Iniciando deploy en el servidor..."
-            
+
             # Crear directorio si no existe
             mkdir -p /var/www/ci-cd-calculator
             cd /var/www/ci-cd-calculator
-            
-            # Detener la app si está corriendo
-            pm2 stop ci-cd-calculator || true
-            
+
             # Extraer los nuevos archivos
             echo "📦 Extrayendo archivos..."
-            tar -xzf /home/runner/work/_temp/deploy.tar.gz -C .
-            
+            tar -xzf deploy.tar.gz -C .
+            rm deploy.tar.gz
+
             # Instalar dependencias
             echo "🔧 Instalando dependencias..."
             yarn install --production
-            
+
             # Iniciar la aplicación con PM2
             echo "🎯 Iniciando aplicación..."
             pm2 start yarn --name "ci-cd-calculator" -- start --port=3000
             pm2 save
-            pm2 startup
-            
+
             echo "✅ ¡Deploy completado exitosamente!"
             echo "🌐 Tu app estará disponible en: http://167.99.182.242:3000"
