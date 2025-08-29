@@ -1,0 +1,67 @@
+name: 🚀 Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'yarn'
+      - run: yarn install
+      - run: yarn build
+      
+      # Empaquetar para deploy
+      - name: 📦 Package for deployment
+        run: |
+          tar -czf deploy.tar.gz .next public package.json yarn.lock
+          ls -la *.tar.gz
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: 📥 Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-package
+          
+      - name: 🚀 Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "📍 Iniciando deploy en el servidor..."
+            
+            # Crear directorio si no existe
+            mkdir -p /var/www/ci-cd-calculator
+            cd /var/www/ci-cd-calculator
+            
+            # Detener la app si está corriendo
+            pm2 stop ci-cd-calculator || true
+            
+            # Extraer los nuevos archivos
+            echo "📦 Extrayendo archivos..."
+            tar -xzf /home/runner/work/_temp/deploy.tar.gz -C .
+            
+            # Instalar dependencias
+            echo "🔧 Instalando dependencias..."
+            yarn install --production
+            
+            # Iniciar la aplicación con PM2
+            echo "🎯 Iniciando aplicación..."
+            pm2 start yarn --name "ci-cd-calculator" -- start --port=3000
+            pm2 save
+            pm2 startup
+            
+            echo "✅ ¡Deploy completado exitosamente!"
+            echo "🌐 Tu app estará disponible en: http://167.99.182.242:3000"
