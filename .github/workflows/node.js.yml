@@ -12,9 +12,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: 'Hola Jefa'
-        run: echo "mi primera automatizacion jefa"
-      - name: Dime que fecha es
-        run: date
-      - name: Muestrame el directorio de contendio
-        run: ls -la
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'yarn install'
+      - run: yarn
+      - run: yarn build
