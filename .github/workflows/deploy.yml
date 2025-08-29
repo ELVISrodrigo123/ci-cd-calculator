@@ -20,7 +20,7 @@ jobs:
       - name: 📦 Install dependencies
         run: yarn install
 
-      - name: 🏗️ Build application
+      - name: Build application
         run: yarn build
 
       - name: 📦 Package for deployment
@@ -45,6 +45,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-package
+          path: .  # ⚠️ CORRECCIÓN: Descargar en directorio actual
 
       - name: 🚀 Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
@@ -54,24 +55,30 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             echo "📍 Iniciando deploy en el servidor..."
-
+            
+            # Verificar que el archivo existe
+            ls -la *.tar.gz || echo "❌ No se encontró deploy.tar.gz"
+            
             # Crear directorio si no existe
             mkdir -p /var/www/ci-cd-calculator
             cd /var/www/ci-cd-calculator
-
+            
             # Extraer los nuevos archivos
             echo "📦 Extrayendo archivos..."
-            tar -xzf deploy.tar.gz -C .
-            rm deploy.tar.gz
-
+            tar -xzf ../deploy.tar.gz -C .  # ⚠️ Ruta relativa corregida
+            rm ../deploy.tar.gz
+            
             # Instalar dependencias
             echo "🔧 Instalando dependencias..."
             yarn install --production
-
+            
+            # Detener instancias previas
+            pm2 delete ci-cd-calculator 2>/dev/null || true
+            
             # Iniciar la aplicación con PM2
             echo "🎯 Iniciando aplicación..."
             pm2 start yarn --name "ci-cd-calculator" -- start --port=3000
             pm2 save
-
+            
             echo "✅ ¡Deploy completado exitosamente!"
             echo "🌐 Tu app estará disponible en: http://167.99.182.242:3000"
