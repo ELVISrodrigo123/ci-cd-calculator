@@ -1,0 +1,23 @@
+name: 🔧 Test SSH Connection
+
+on:
+  workflow_dispatch: # Permite ejecución manual
+
+jobs:
+  test-ssh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔐 Test SSH Connection
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "✅ ¡Conexión SSH exitosa!"
+            echo "📋 Información del servidor:"
+            echo "Usuario: $(whoami)"
+            echo "Directorio: $(pwd)"
+            echo "Node: $(node --version)"
+            echo "NPM: $(npm --version)"
+            echo "Yarn: $(yarn --version)"
