@@ -54,7 +54,7 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          timeout: 600  # ⚠️ Timeout de 10 minutos (600 segundos) - parámetro CORRECTO
+          timeout: 600s  # ⚠️ CORRECTO: 600 segundos (10 minutos) con unidad 's'
           script: |
             echo "📍 Iniciando deploy en el servidor..."
             
