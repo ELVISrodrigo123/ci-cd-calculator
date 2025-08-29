@@ -5,96 +5,53 @@ on:
     branches: [main]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: 🛎️ Checkout code
-        uses: actions/checkout@v4
-
-      - name: ⎔ Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: "yarn"
-
-      - name: 📦 Install dependencies
-        run: yarn install
-
-      - name: Build application
-        run: yarn build
-
-      - name: 📦 Package for deployment
-        run: |
-          tar -czf deploy.tar.gz .next public package.json yarn.lock
-          ls -la *.tar.gz
-
-      - name: 📤 Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-package
-          path: deploy.tar.gz
-          retention-days: 1
-
   deploy:
     runs-on: ubuntu-latest
-    needs: build
     if: github.ref == 'refs/heads/main'
     timeout-minutes: 15
 
     steps:
-      - name: 📥 Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-package
-          path: ./artifacts  # ⚠️ Cambiado: Descargar en subdirectorio
-
-      - name: 🚀 Deploy to VPS
+      - name: 🚀 Deploy to VPS via Git
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          timeout: 600s
+          timeout: 300s  # 5 minutos
           script: |
-            echo "📍 Iniciando deploy en el servidor..."
+            echo "📍 Iniciando deploy via Git..."
             
-            # 1. VERIFICAR que el archivo existe en la ruta correcta
-            echo "📁 Contenido del directorio artifacts:"
-            ls -la ./artifacts/ || echo "❌ No existe directorio artifacts"
-            
-            # 2. COPIAR el archivo al directorio temporal del SSH action
-            echo "📦 Moviendo archivo..."
-            cp ./artifacts/deploy.tar.gz ./ || echo "❌ No se pudo copiar el archivo"
-            
-            # 3. VERIFICAR que ahora existe
-            ls -la *.tar.gz || echo "❌ No se encontró deploy.tar.gz después de copiar"
-            
-            # 4. PREPARAR DIRECTORIO
-            echo "📁 Preparando directorio de la aplicación..."
-            mkdir -p /var/www/ci-cd-calculator
+            # 1. NAVEGAR AL DIRECTORIO
             cd /var/www/ci-cd-calculator
             
-            # 5. EXTRAER ARCHIVOS
-            echo "📦 Extrayendo archivos..."
-            tar -xzf /home/runner/work/_temp/deploy.tar.gz -C .  # ⚠️ Ruta ABSOLUTA
+            # 2. HACER PULL DE LOS CAMBIOS
+            echo "📥 Obteniendo cambios del repositorio..."
+            git fetch origin
+            git reset --hard origin/main
             
-            # 6. INSTALAR DEPENDENCIAS
+            # 3. INSTALAR DEPENDENCIAS
             echo "🔧 Instalando dependencias..."
             yarn install
             
-            # 7. CONSTRUIR (por si acaso)
+            # 4. CONSTRUIR APLICACIÓN
+            echo "🏗️ Construyendo aplicación..."
             yarn build
             
-            # 8. LIMPIAR PROCESOS ANTERIORES
+            # 5. LIMPIAR PROCESOS ANTERIORES
             echo "🧹 Limpiando procesos anteriores..."
             pm2 delete ci-cd-calculator 2>/dev/null || true
             pkill -f "node.*3000" 2>/dev/null || true
             sleep 2
             
-            # 9. INICIAR APLICACIÓN
+            # 6. INICIAR APLICACIÓN
             echo "🎯 Iniciando aplicación..."
             HOST=0.0.0.0 pm2 start yarn --name "ci-cd-calculator" -- start --port=3000
             pm2 save
             
-            echo "✅ ¡Deploy completado exitosamente!"
-            echo "🌐 Tu app estará disponible en: http://167.99.182.242:3000"
+            # 7. VERIFICAR
+            echo "✅ Verificando despliegue..."
+            sleep 3
+            pm2 status
+            
+            echo "🎉 ¡Deploy completado exitosamente!"
+            echo "🌐 Tu app está en: http://167.99.182.242:3000"
