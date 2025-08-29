@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
       - name: 'Hola Jefa'
         run: echo "mi primera automatizacion jefa"
       - name: Dime que fecha es
