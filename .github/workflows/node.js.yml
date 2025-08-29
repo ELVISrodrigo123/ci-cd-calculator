@@ -12,4 +12,8 @@ jobs:
 
     steps:
       - name: 'Hola Jefa'
-        run: echo "Hello word"
+        run: echo "mi primera automatizacion jefa"
+      - name: Dime que fecha es
+        run: Date
+      - name: Muestrame el directorio de contendio
+        run: ls -la
