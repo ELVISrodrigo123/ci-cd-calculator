@@ -39,14 +39,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main'
-    timeout-minutes: 15  # ⚠️ Timeout global de 15 minutos
+    timeout-minutes: 15
 
     steps:
       - name: 📥 Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: build-package
-          path: .  # ⚠️ Descargar en directorio actual
+          path: ./artifacts  # ⚠️ Cambiado: Descargar en subdirectorio
 
       - name: 🚀 Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
@@ -54,35 +54,44 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          timeout: 600s  # ⚠️ CORRECTO: 600 segundos (10 minutos) con unidad 's'
+          timeout: 600s
           script: |
             echo "📍 Iniciando deploy en el servidor..."
             
-            # Verificar que el archivo existe
-            ls -la *.tar.gz || echo "❌ No se encontró deploy.tar.gz"
+            # 1. VERIFICAR que el archivo existe en la ruta correcta
+            echo "📁 Contenido del directorio artifacts:"
+            ls -la ./artifacts/ || echo "❌ No existe directorio artifacts"
             
-            # Crear directorio si no existe
+            # 2. COPIAR el archivo al directorio temporal del SSH action
+            echo "📦 Moviendo archivo..."
+            cp ./artifacts/deploy.tar.gz ./ || echo "❌ No se pudo copiar el archivo"
+            
+            # 3. VERIFICAR que ahora existe
+            ls -la *.tar.gz || echo "❌ No se encontró deploy.tar.gz después de copiar"
+            
+            # 4. PREPARAR DIRECTORIO
+            echo "📁 Preparando directorio de la aplicación..."
             mkdir -p /var/www/ci-cd-calculator
             cd /var/www/ci-cd-calculator
             
-            # Extraer los nuevos archivos
+            # 5. EXTRAER ARCHIVOS
             echo "📦 Extrayendo archivos..."
-            tar -xzf ../deploy.tar.gz -C .
-            rm ../deploy.tar.gz
+            tar -xzf /home/runner/work/_temp/deploy.tar.gz -C .  # ⚠️ Ruta ABSOLUTA
             
-            # Instalar dependencias COMPLETAS (no --production)
+            # 6. INSTALAR DEPENDENCIAS
             echo "🔧 Instalando dependencias..."
-            yarn install  # ⚠️ IMPORTANTE: Sin --production para incluir TypeScript
+            yarn install
             
-            # Construir aplicación
+            # 7. CONSTRUIR (por si acaso)
             yarn build
             
-            # Detener instancias previas
+            # 8. LIMPIAR PROCESOS ANTERIORES
+            echo "🧹 Limpiando procesos anteriores..."
             pm2 delete ci-cd-calculator 2>/dev/null || true
             pkill -f "node.*3000" 2>/dev/null || true
             sleep 2
             
-            # Iniciar la aplicación con PM2 escuchando en todas las interfaces
+            # 9. INICIAR APLICACIÓN
             echo "🎯 Iniciando aplicación..."
             HOST=0.0.0.0 pm2 start yarn --name "ci-cd-calculator" -- start --port=3000
             pm2 save
