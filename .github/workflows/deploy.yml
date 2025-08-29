@@ -5,51 +5,80 @@ on:
     branches: [main]
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🛎️ Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⎔ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: "yarn"
+
+      - name: 📦 Install dependencies
+        run: yarn install
+
+      - name: Build application
+        run: yarn build
+
+      - name: 📦 Package for deployment
+        run: |
+          tar -czf deploy.tar.gz .next public package.json yarn.lock
+          ls -la *.tar.gz
+
+      - name: 📤 Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-package
+          path: deploy.tar.gz
+          retention-days: 1
+
   deploy:
     runs-on: ubuntu-latest
+    needs: build
     if: github.ref == 'refs/heads/main'
-    timeout-minutes: 20  # ⚠️ Aumentar timeout a 20 minutos
 
     steps:
-      - name: 🚀 Deploy via Git Pull
+      - name: 📥 Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-package
+          path: .  # ⚠️ CORRECCIÓN: Descargar en directorio actual
+
+      - name: 🚀 Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          timeout: 900s  # ⚠️ 15 minutos (900 segundos)
           script: |
-            echo "📍 Iniciando deploy via Git..."
+            echo "📍 Iniciando deploy en el servidor..."
             
-            # 1. NAVEGAR AL DIRECTORIO
+            # Verificar que el archivo existe
+            ls -la *.tar.gz || echo "❌ No se encontró deploy.tar.gz"
+            
+            # Crear directorio si no existe
+            mkdir -p /var/www/ci-cd-calculator
             cd /var/www/ci-cd-calculator
             
-            # 2. HACER PULL DE LOS CAMBIOS
-            echo "📥 Obteniendo cambios del repositorio..."
-            git fetch origin
-            git reset --hard origin/main
+            # Extraer los nuevos archivos
+            echo "📦 Extrayendo archivos..."
+            tar -xzf ../deploy.tar.gz -C .  # ⚠️ Ruta relativa corregida
+            rm ../deploy.tar.gz
             
-            # 3. INSTALAR DEPENDENCIAS
+            # Instalar dependencias
             echo "🔧 Instalando dependencias..."
-            yarn install --frozen-lockfile  # ⚠️ Más rápido
+            yarn install --production
             
-            # 4. CONSTRUIR APLICACIÓN
-            echo "🏗️ Construyendo aplicación..."
-            yarn build
-            
-            # 5. LIMPIAR PROCESOS ANTERIORES
-            echo "🧹 Limpiando procesos anteriores..."
+            # Detener instancias previas
             pm2 delete ci-cd-calculator 2>/dev/null || true
-            pkill -f "node.*3000" 2>/dev/null || true
-            sleep 2
             
-            # 6. INICIAR APLICACIÓN
+            # Iniciar la aplicación con PM2
             echo "🎯 Iniciando aplicación..."
-            HOST=0.0.0.0 pm2 start yarn --name "ci-cd-calculator" -- start --port=3000
+            pm2 start yarn --name "ci-cd-calculator" -- start --port=3000
+            pm2 save
             
-            # 7. VERIFICACIÓN RÁPIDA
-            echo "✅ Verificación rápida..."
-            sleep 5
-            pm2 status | grep online && echo "🎉 ¡Aplicación online!" || echo "⚠️ Revisar logs"
-            
-            echo "🚀 ¡Deploy completado! http://167.99.182.242:3000"
+            echo "✅ ¡Deploy completado exitosamente!"
+            echo "🌐 Tu app estará disponible en: http://167.99.182.242:3000"
