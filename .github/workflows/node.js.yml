@@ -14,6 +14,6 @@ jobs:
       - name: 'Hola Jefa'
         run: echo "mi primera automatizacion jefa"
       - name: Dime que fecha es
-        run: Date
+        run: date
       - name: Muestrame el directorio de contendio
         run: ls -la
