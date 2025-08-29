@@ -45,7 +45,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-package
-          path: .  # ⚠️ CORRECCIÓN: Descargar en directorio actual
+          path: .  # ⚠️ IMPORTANTE: Descargar en directorio actual
 
       - name: 🚀 Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
@@ -56,29 +56,75 @@ jobs:
           script: |
             echo "📍 Iniciando deploy en el servidor..."
             
-            # Verificar que el archivo existe
-            ls -la *.tar.gz || echo "❌ No se encontró deploy.tar.gz"
+            # 1. LIMPIAR PROCESOS ANTERIORES
+            echo "🧹 Limpiando procesos anteriores..."
+            pm2 delete ci-cd-calculator 2>/dev/null || true
+            pkill -f "node.*3000" 2>/dev/null || true
+            pkill -f "next.*start" 2>/dev/null || true
+            pkill -f "yarn.*start" 2>/dev/null || true
+            sleep 3  # Esperar que los procesos terminen
             
-            # Crear directorio si no existe
+            # 2. VERIFICAR QUE EL PUERTO ESTÉ LIBRE
+            echo "🔍 Verificando puerto 3000..."
+            if sudo lsof -i :3000 || sudo ss -tulpn | grep :3000; then
+                echo "❌ Puerto 3000 aún ocupado, forzando liberación..."
+                sudo pkill -9 -f ":3000" 2>/dev/null || true
+                sleep 2
+            fi
+            
+            # 3. PREPARAR DIRECTORIO
+            echo "📁 Preparando directorio..."
             mkdir -p /var/www/ci-cd-calculator
             cd /var/www/ci-cd-calculator
             
-            # Extraer los nuevos archivos
+            # 4. EXTRAER NUEVOS ARCHIVOS
             echo "📦 Extrayendo archivos..."
-            tar -xzf ../deploy.tar.gz -C .  # ⚠️ Ruta relativa corregida
+            tar -xzf ../deploy.tar.gz -C .
             rm ../deploy.tar.gz
             
-            # Instalar dependencias
+            # 5. INSTALAR DEPENDENCIAS COMPLETAS
             echo "🔧 Instalando dependencias..."
-            yarn install --production
+            yarn install  # ⚠️ SIN --production para incluir TypeScript
             
-            # Detener instancias previas
+            # 6. CONSTRUIR APLICACIÓN
+            echo "🏗️ Construyendo aplicación..."
+            yarn build
+            
+            # 7. INICIAR APLICACIÓN CORRECTAMENTE
+            echo "🎯 Iniciando aplicación..."
+            export HOST=0.0.0.0  # ⚠️ Escuchar en todas las interfaces
+            export PORT=3000
+            
+            # Detener cualquier instancia previa de PM2
             pm2 delete ci-cd-calculator 2>/dev/null || true
             
-            # Iniciar la aplicación con PM2
-            echo "🎯 Iniciando aplicación..."
+            # Iniciar nueva instancia
             pm2 start yarn --name "ci-cd-calculator" -- start --port=3000
-            pm2 save
             
-            echo "✅ ¡Deploy completado exitosamente!"
-            echo "🌐 Tu app estará disponible en: http://167.99.182.242:3000"
+            # 8. CONFIGURAR INICIO AUTOMÁTICO
+            echo "⚙️ Configurando inicio automático..."
+            pm2 save 2>/dev/null || true
+            
+            # 9. VERIFICAR DESPLIEGUE
+            echo "✅ Verificando despliegue..."
+            sleep 5  # Esperar que la app inicie
+            
+            # Verificar estado
+            pm2 status
+            
+            # Verificar que está escuchando
+            if sudo ss -tulpn | grep :3000; then
+                echo "🎉 ¡Aplicación ejecutándose correctamente!"
+                echo "🌐 Disponible en: http://167.99.182.242:3000"
+            else
+                echo "⚠️ La aplicación no está escuchando en el puerto 3000"
+                echo "📋 Revisando logs..."
+                pm2 logs ci-cd-calculator --lines 10
+                exit 1
+            fi
+            
+            # 10. LIMPIEZA FINAL
+            echo "🧽 Limpieza final..."
+            rm -f ../deploy.tar.gz 2>/dev/null || true
+            
+            echo "🚀 ¡Deploy completado exitosamente!"
