@@ -25,8 +25,7 @@ jobs:
 
       - name: 📦 Package for deployment
         run: |
-          # Incluir node_modules para evitar tener que instalar en producción
-          tar -czf deploy.tar.gz .next public package.json yarn.lock node_modules
+          tar -czf deploy.tar.gz .next public package.json yarn.lock
           ls -la *.tar.gz
 
       - name: 📤 Upload build artifact
@@ -40,14 +39,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main'
-    timeout-minutes: 20  # ⚠️ Aumentar timeout
 
     steps:
       - name: 📥 Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: build-package
-          path: .  # Descargar en directorio actual
+          path: .  # ⚠️ CORRECCIÓN: Descargar en directorio actual
 
       - name: 🚀 Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
@@ -55,40 +53,35 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          timeout: 600s  # ⚠️ Timeout de 10 minutos
           script: |
             echo "📍 Iniciando deploy en el servidor..."
             
-            # 1. Verificar que el archivo existe
+            echo "🔧 Instalando TypeScript (necesario para next.config.ts)..."
+            yarn add typescript
+            
+            # Verificar que el archivo existe
             ls -la *.tar.gz || echo "❌ No se encontró deploy.tar.gz"
             
-            # 2. Crear directorio
+            # Crear directorio si no existe
             mkdir -p /var/www/ci-cd-calculator
             cd /var/www/ci-cd-calculator
             
-            # 3. Extraer archivos (INCLUYENDO node_modules)
+            # Extraer los nuevos archivos
             echo "📦 Extrayendo archivos..."
-            tar -xzf ../deploy.tar.gz -C .
+            tar -xzf ../deploy.tar.gz -C .  # ⚠️ Ruta relativa corregida
             rm ../deploy.tar.gz
             
-            # 4. SOLUCIÓN: Instalar TypeScript explícitamente ⚠️ IMPORTANTE
-            echo "🔧 Instalando TypeScript (necesario para next.config.ts)..."
-            yarn add typescript  # ⚠️ Instalar como dependencia regular
+            # Instalar dependencias
+            echo "🔧 Instalando dependencias..."
+            yarn install --production
             
-            # 5. Limpiar procesos anteriores
-            echo "🧹 Limpiando procesos anteriores..."
+            # Detener instancias previas
             pm2 delete ci-cd-calculator 2>/dev/null || true
-            pkill -f "node.*3000" 2>/dev/null || true
-            sleep 2
             
-            # 6. Iniciar aplicación ESCUCHANDO EN TODAS LAS INTERFACES
+            # Iniciar la aplicación con PM2
             echo "🎯 Iniciando aplicación..."
-            HOST=0.0.0.0 pm2 start yarn --name "ci-cd-calculator" -- start --port=3000
+            pm2 start yarn --name "ci-cd-calculator" -- start --port=3000
+            pm2 save
             
-            # 7. Verificación
-            echo "✅ Verificando despliegue..."
-            sleep 5
-            pm2 status
-            
-            echo "🎉 ¡Deploy completado exitosamente!"
-            echo "🌐 Tu app está en: http://167.99.182.242:3000"
+            echo "✅ ¡Deploy completado exitosamente!"
+            echo "🌐 Tu app estará disponible en: http://167.99.182.242:3000"
