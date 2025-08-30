@@ -65,7 +65,7 @@ export default function Home() {
       <div style={{ maxWidth: 280, margin: "40px auto", padding: 16, border: "1px solid #ccc", borderRadius: 12 }}>
         <Display operation={operation} value={display} />
         <Keypad onPress={handlePress} />
-        <h1>hola elvis</h1>
+        <h1>hola Emi</h1>
       </div>
     </>
   );
