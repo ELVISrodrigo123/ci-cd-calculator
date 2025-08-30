@@ -66,7 +66,7 @@ export default function Home() {
         <Display operation={operation} value={display} />
         <Keypad onPress={handlePress} />
         <h1>no puede ser </h1>
-        <h2>Buenos dias señores</h2>
+        <h2>Buenos dias criaturitas del mundo </h2>
       </div>
     </>
   );
