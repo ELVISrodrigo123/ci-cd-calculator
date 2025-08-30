@@ -65,8 +65,8 @@ export default function Home() {
       <div style={{ maxWidth: 280, margin: "40px auto", padding: 16, border: "1px solid #ccc", borderRadius: 12 }}>
         <Display operation={operation} value={display} />
         <Keypad onPress={handlePress} />
-        <h1>hola Emi</h1>
-        <h2>vamos a cantar el viernes verdad ¿? o no</h2>
+        <h1>Wen dia Emi</h1>
+        <h2>Como estas¿?</h2>
       </div>
     </>
   );
