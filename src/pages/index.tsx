@@ -66,6 +66,7 @@ export default function Home() {
         <Display operation={operation} value={display} />
         <Keypad onPress={handlePress} />
         <h1>hola Emi</h1>
+        <h2>vamos a cantar el viernes verdad ¿?</h2>
       </div>
     </>
   );
