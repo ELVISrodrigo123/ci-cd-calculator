@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "start": "next start -p 3000",
+    "lint": "eslint",
+    "deploy": "git pull && yarn install --frozen-lockfile && yarn build && pm2 restart ci-cd-calculator"
   },
   "dependencies": {
     "react": "19.1.0",
